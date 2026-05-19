@@ -3,8 +3,9 @@
 [![CI](https://github.com/zz-plant/sabnzbd-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/zz-plant/sabnzbd-mcp/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python](https://img.shields.io/badge/python-3.10+-blue.svg)]()
-[![PyPI](https://img.shields.io/badge/PyPI-0.1.0-blue)](https://pypi.org/project/sabnzbd-mcp/)
+[![PyPI](https://img.shields.io/badge/PyPI-0.2.0-blue)]()
 [![MCP](https://img.shields.io/badge/MCP-2024--11--05-purple)](https://modelcontextprotocol.io/)
+[![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 
 A [Model Context Protocol](https://modelcontextprotocol.io/) server for [SABnzbd](https://sabnzbd.org/) — zero external dependencies. Give any AI agent control over Usenet downloads.
 
@@ -152,6 +153,16 @@ See [`docs/recipes/`](docs/recipes/) for full pipeline examples.
 ```
 
 The server is a single self-contained Python file ([`src/sabnzbd_mcp/server.py`](src/sabnzbd_mcp/server.py)) with no dependencies beyond the standard library. It communicates over stdio using line-delimited JSON-RPC 2.0 — no Content-Length framing required.
+
+## Docker
+
+```bash
+docker build -t sabnzbd-mcp .
+docker run -i --rm \
+  -e SABNZBD_URL="http://host.docker.internal:8080" \
+  -e SABNZBD_API_KEY="your-key" \
+  sabnzbd-mcp
+```
 
 ## Development
 

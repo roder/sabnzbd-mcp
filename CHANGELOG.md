@@ -12,7 +12,9 @@
   - `sab_retry` — retry failed downloads (single or all)
   - `sab_history_delete` — remove items from history
 - Queue and history output now includes NZO IDs for management tools
-- Added CI/CD, CONTRIBUTING, SECURITY, AGENTS.md, issue templates
+- Added Dockerfile, .env.example
+- CI tests across Python 3.10–3.13, validates MCP protocol startup
+- Added CONTRIBUTING, SECURITY, AGENTS.md, issue templates
 
 ## 0.1.0 (2026-05-19)
 

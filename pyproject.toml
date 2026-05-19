@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=75.0"]
-build-backend = "setuptools.backends._legacy._Backend"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "sabnzbd-mcp"
@@ -19,6 +19,9 @@ Changelog = "https://github.com/zz-plant/sabnzbd-mcp/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 dev = ["pytest", "ruff"]
+
+[project.scripts]
+sabnzbd-mcp = "sabnzbd_mcp.server:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
