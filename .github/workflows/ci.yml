@@ -1,0 +1,22 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -e .
+      - run: python -c "import sabnzbd_mcp; print(f'sabnzbd-mcp {sabnzbd_mcp.__version__}')"
+      - name: Validate startup
+        run: |
+          echo '{}' | timeout 3 python -m sabnzbd_mcp 2>/dev/null && echo "FAIL: should have rejected empty init" || echo "PASS: rejects invalid json"
+          printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n' | python -m sabnzbd_mcp | python3 -c "
+import sys, json
+lines = [json.loads(l) for l in sys.stdin if l.strip()]
+assert len(lines) == 2, f'Expected 2 messages, got {len(lines)}'
+assert lines[0]['id'] == 1 and 'protocolVersion' in lines[0]['result']
+assert lines[1]['id'] == 2 and len(lines[1]['result']['tools']) == 7
+print(f\"PASS: {len(lines[1]['result']['tools'])} tools registered\")"

@@ -1,0 +1,24 @@
+name: Bug Report
+description: Report something broken
+labels: [bug]
+body:
+  - type: input
+    id: version
+    attributes:
+      label: sabnzbd-mcp version
+      placeholder: "e.g. 0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: python
+    attributes:
+      label: Python version
+      placeholder: "e.g. 3.11"
+    validations:
+      required: true
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+    validations:
+      required: true
