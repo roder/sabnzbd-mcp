@@ -4,7 +4,7 @@ build-backend = "setuptools.backends._legacy._Backend"
 
 [project]
 name = "sabnzbd-mcp"
-version = "0.1.0"
+version = "0.2.0"
 description = "MCP server for SABnzbd — control Usenet downloads from any AI agent"
 readme = "README.md"
 license = { text = "MIT" }

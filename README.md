@@ -18,21 +18,29 @@ sabnzbd-mcp
 ## Features
 
 - **No dependencies** — pure Python standard library. One file, zero installs beyond the package itself.
-- **7 tools** — queue, history, status, pause, resume, add NZB, list categories.
+- **16 tools** — full queue, history, config, category, and priority management.
 - **Any client** — Claude Desktop, Claude Code, Codex, OpenCode, Cursor, Windsurf, or any MCP host.
-- **Minimal** — ~200 lines. Easy to audit, extend, or fork.
+- **Minimal** — single file, zero deps. Easy to audit, extend, or fork.
 
 ## Tools
 
-| Tool | Description | Annotations |
+| Category | Tool | Description |
 |---|---|---|
-| `sab_queue` | View the download queue — items, speed, progress | read-only |
-| `sab_history` | Browse completed and failed downloads | read-only |
-| `sab_status` | Server health — speed limits, disk space, directories | read-only |
-| `sab_pause` | Pause all active downloads | mutating |
-| `sab_resume` | Resume paused downloads | mutating |
-| `sab_add_url` | Add an NZB by URL (optional category) | destructive |
-| `sab_categories` | List configured categories | read-only |
+| **Read** | `sab_queue` | View the download queue — items, speed, progress, NZO IDs |
+| | `sab_history` | Browse completed and failed downloads with NZO IDs |
+| | `sab_status` | Server health — speed limits, disk space, directories |
+| | `sab_categories` | List configured download categories |
+| | `sab_get_config` | Get server configuration parameters |
+| **Control** | `sab_pause` | Pause all active downloads |
+| | `sab_resume` | Resume paused downloads |
+| | `sab_set_speedlimit` | Set global download speed limit (percentage or absolute) |
+| **Add** | `sab_add_url` | Add an NZB by URL (with optional category) |
+| | `sab_add_nzb_file` | Upload an NZB as base64-encoded content |
+| **Queue** | `sab_queue_delete` | Remove a download from the queue by NZO ID |
+| | `sab_change_priority` | Change priority (low/normal/high/force) of a queued download |
+| | `sab_set_category` | Change the category of a queued download |
+| **History** | `sab_retry` | Retry failed downloads (by NZO ID or all) |
+| | `sab_history_delete` | Remove an item from the download history |
 
 ## Configuration
 

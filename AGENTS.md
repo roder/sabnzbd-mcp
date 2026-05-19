@@ -13,9 +13,17 @@ This is a zero-dependency Python MCP server that wraps the SABnzbd API.
 | `sab_queue` | User asks about current downloads, speed, progress |
 | `sab_history` | User asks what finished or failed |
 | `sab_status` | User asks about server health, disk space, config |
-| `sab_pause` / `sab_resume` | User wants to stop/start downloads |
-| `sab_add_url` | User provides an NZB URL or magnet to download |
 | `sab_categories` | User asks what categories exist for sorting |
+| `sab_get_config` | User asks about server configuration |
+| `sab_pause` / `sab_resume` | User wants to stop/start downloads |
+| `sab_set_speedlimit` | User wants to throttle or unlimit downloads |
+| `sab_add_url` | User provides an NZB URL to download |
+| `sab_add_nzb_file` | User provides NZB content as text (encode to base64 first) |
+| `sab_queue_delete` | User wants to remove a specific download |
+| `sab_change_priority` | User wants a download to go faster/slower |
+| `sab_set_category` | User wants to change the category of a queued item |
+| `sab_retry` | User wants to retry a failed download |
+| `sab_history_delete` | User wants to clean up history |
 
 ## Architecture
 
