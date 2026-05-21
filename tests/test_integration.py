@@ -3,6 +3,7 @@ import os
 import json
 import subprocess
 import sys
+import pytest
 
 def test_queue():
     url = os.environ.get("SABNZBD_URL")

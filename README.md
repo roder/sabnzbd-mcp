@@ -19,7 +19,7 @@ sabnzbd-mcp
 ## Features
 
 - **No dependencies** — pure Python standard library. One file, zero installs beyond the package itself.
-- **16 tools** — full queue, history, config, category, and priority management.
+- **15 tools** — full queue, history, config, category, and priority management.
 - **Any client** — Claude Desktop, Claude Code, Codex, OpenCode, Cursor, Windsurf, or any MCP host.
 - **Minimal** — single file, zero deps. Easy to audit, extend, or fork.
 

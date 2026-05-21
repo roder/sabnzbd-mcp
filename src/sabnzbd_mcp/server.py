@@ -3,20 +3,26 @@
 import base64
 import json
 import os
+import ssl
 import sys
 import urllib.parse
 import urllib.request
 
-SABNZBD_URL = os.environ.get("SABNZBD_URL", "http://localhost:8080")
+SABNZBD_URL = os.environ.get("SABNZBD_URL", "http://localhost:8080").rstrip("/")
 SABNZBD_API_KEY = os.environ.get("SABNZBD_API_KEY", "")
+SABNZBD_SSL_VERIFY = os.environ.get("SABNZBD_SSL_VERIFY", "true").lower() not in ("false", "0", "no")
 
+def _get_ssl_context():
+    if not SABNZBD_SSL_VERIFY:
+        return ssl._create_unverified_context()
+    return None
 
 def _sab(mode, **extra):
     """Call the SABnzbd API and return parsed JSON."""
     params = {"mode": mode, "apikey": SABNZBD_API_KEY, "output": "json"} | extra
     url = f"{SABNZBD_URL}/api?{urllib.parse.urlencode(params)}"
     try:
-        with urllib.request.urlopen(url, timeout=15) as r:
+        with urllib.request.urlopen(url, timeout=15, context=_get_ssl_context()) as r:
             return json.loads(r.read())
     except urllib.error.HTTPError as e:
         return {"error": f"HTTP {e.code}: {e.reason}"}
@@ -25,12 +31,11 @@ def _sab(mode, **extra):
     except Exception as e:
         return {"error": str(e)}
 
-
 def _sab_post(url, data=None, headers=None):
     """POST to SABnzbd API (for file uploads)."""
     try:
         req = urllib.request.Request(url, data=data, headers=headers or {})
-        with urllib.request.urlopen(req, timeout=30) as r:
+        with urllib.request.urlopen(req, timeout=30, context=_get_ssl_context()) as r:
             return json.loads(r.read())
     except urllib.error.HTTPError as e:
         return {"error": f"HTTP {e.code}: {e.reason}"}
@@ -219,6 +224,8 @@ TOOLS = [
 
 
 def _fmt_queue(data):
+    if "error" in data:
+        return data["error"]
     q = data.get("queue", {})
     slots = q.get("slots", [])[:25]
     lines = [
@@ -236,6 +243,8 @@ def _fmt_queue(data):
 
 
 def _fmt_history(data):
+    if "error" in data:
+        return data["error"]
     h = data.get("history", {})
     slots = h.get("slots", [])[:25]
     if not slots:
@@ -250,6 +259,8 @@ def _fmt_history(data):
 
 
 def _fmt_status(data):
+    if "error" in data:
+        return data["error"]
     s = data.get("status", {})
     return (
         f"Speed: {s.get('speed', '0')} ({s.get('speedlimit', '100')}% limit)\n"
@@ -260,6 +271,8 @@ def _fmt_status(data):
 
 
 def _fmt_config(data):
+    if "error" in data:
+        return data["error"]
     cfg = data.get("config", {})
     keys = ["host", "port", "download_dir", "complete_dir", "username",
             "api_key", "ssl", "web_dir", "enable_https", "https_port",
@@ -277,55 +290,60 @@ def _speedlimit_value(value, mode):
     """Format speed limit for SABnzbd API."""
     if mode == "absolute" or any(c in value for c in "KM"):
         return value
+    if not value.endswith("%"):
+        return f"{value}%"
     return value
 
 
-TOOL_HANDLERS = {
-    "sab_queue": lambda a: _fmt_queue(_sab("queue")),
-    "sab_history": lambda a: _fmt_history(_sab("history")),
-    "sab_status": lambda a: _fmt_status(_sab("status")),
-    "sab_categories": lambda a: (
-        "Categories:\n" + "\n".join(
-            f"  {c.get('name','?')}" for c in _sab("get_cats").get("categories", [])
-        )
-    ) if _sab("get_cats").get("categories") else "No categories.",
-    "sab_get_config": lambda a: _fmt_config(_sab("get_config")),
-    "sab_pause": lambda a: "Paused" if "error" not in (d := _sab("pause")) else d["error"],
-    "sab_resume": lambda a: "Resumed" if "error" not in (d := _sab("resume")) else d["error"],
-    "sab_set_speedlimit": lambda a: (
-        d := _sab("config", name="speedlimit", value=_speedlimit_value(a["value"], a.get("mode", "percent")))
-    ) and ("Speed limit set" if "error" not in d else d["error"]),
-    "sab_add_url": lambda a: (
-        d := _sab("addurl", name=a["url"], cat=a.get("category", ""))
-    ) and ("Added NZB" if "error" not in d else d["error"]),
-    "sab_add_nzb_file": lambda a: _handle_add_nzb(a),
-    "sab_queue_delete": lambda a: (
-        d := _sab("queue", name="delete", value=a["nzo_id"])
-    ) and ("Removed from queue" if "error" not in d else d["error"]),
-    "sab_change_priority": lambda a: (
-        d := _sab("priority", name=a["priority"], value=a["nzo_id"])
-    ) and (f"Priority changed to {a['priority']}" if "error" not in d else d["error"]),
-    "sab_set_category": lambda a: (
-        d := _sab("change_cat", value=a["nzo_id"], cat=a["category"])
-    ) and (f"Category changed to {a['category']}" if "error" not in d else d["error"]),
-    "sab_retry": lambda a: (
-        d := _sab("retry", value=a.get("nzo_id", "all"))
-    ) and ("Retrying" if "error" not in d else d["error"]),
-    "sab_history_delete": lambda a: (
-        d := _sab("history", name="delete", value=a["nzo_id"])
-    ) and ("Deleted from history" if "error" not in d else d["error"]),
-}
+def handle_queue(args):
+    d = _sab("queue")
+    return _fmt_queue(d), d
 
+def handle_history(args):
+    d = _sab("history")
+    return _fmt_history(d), d
 
-def _handle_add_nzb(args):
-    """Upload NZB from base64 content via multipart POST."""
+def handle_status(args):
+    d = _sab("status")
+    return _fmt_status(d), d
+
+def handle_categories(args):
+    d = _sab("get_cats")
+    if "error" in d:
+        return d["error"], d
+    cats = d.get("categories", [])
+    if not cats:
+        return "No categories.", d
+    return "Categories:\n" + "\n".join(f"  {c.get('name','?')}" for c in cats), d
+
+def handle_get_config(args):
+    d = _sab("get_config")
+    return _fmt_config(d), d
+
+def handle_pause(args):
+    d = _sab("pause")
+    return d["error"] if "error" in d else "Paused", d
+
+def handle_resume(args):
+    d = _sab("resume")
+    return d["error"] if "error" in d else "Resumed", d
+
+def handle_set_speedlimit(args):
+    d = _sab("config", name="speedlimit", value=_speedlimit_value(args["value"], args.get("mode", "percent")))
+    return d["error"] if "error" in d else "Speed limit set", d
+
+def handle_add_url(args):
+    d = _sab("addurl", name=args["url"], cat=args.get("category", ""))
+    return d["error"] if "error" in d else "Added NZB", d
+
+def handle_add_nzb_file(args):
     content_b64 = args.get("content", "")
     filename = args.get("filename", "upload.nzb")
     category = args.get("category", "")
     try:
         raw = base64.b64decode(content_b64)
     except Exception as e:
-        return f"Invalid base64 content: {e}"
+        return f"Invalid base64 content: {e}", {"error": f"Invalid base64 content: {e}"}
     boundary = b"----sabnzbd-mcp-boundary"
     body = []
     if category:
@@ -334,9 +352,7 @@ def _handle_add_nzb(args):
         body.append(b"")
         body.append(category.encode())
     body.append(b"--" + boundary)
-    body.append(
-        f'Content-Disposition: form-data; name="name"; filename="{filename}"'.encode()
-    )
+    body.append(f'Content-Disposition: form-data; name="name"; filename="{filename}"'.encode())
     body.append(b"Content-Type: application/x-nzb")
     body.append(b"")
     body.append(raw)
@@ -345,9 +361,46 @@ def _handle_add_nzb(args):
     url = f"{SABNZBD_URL}/api?mode=addfile&output=json&apikey={SABNZBD_API_KEY}"
     headers = {"Content-Type": f"multipart/form-data; boundary={boundary.decode()}"}
     result = _sab_post(url, data=payload, headers=headers)
-    if "error" in result:
-        return f"Upload failed: {result['error']}"
-    return "NZB file uploaded successfully"
+    return (f"Upload failed: {result['error']}" if "error" in result else "NZB file uploaded successfully", result)
+
+def handle_queue_delete(args):
+    d = _sab("queue", name="delete", value=args["nzo_id"])
+    return d["error"] if "error" in d else "Removed from queue", d
+
+def handle_change_priority(args):
+    d = _sab("priority", name=args["priority"], value=args["nzo_id"])
+    return d["error"] if "error" in d else f"Priority changed to {args['priority']}", d
+
+def handle_set_category(args):
+    d = _sab("change_cat", value=args["nzo_id"], cat=args["category"])
+    return d["error"] if "error" in d else f"Category changed to {args['category']}", d
+
+def handle_retry(args):
+    d = _sab("retry", value=args.get("nzo_id", "all"))
+    return d["error"] if "error" in d else "Retrying", d
+
+def handle_history_delete(args):
+    d = _sab("history", name="delete", value=args["nzo_id"])
+    return d["error"] if "error" in d else "Deleted from history", d
+
+
+TOOL_HANDLERS = {
+    "sab_queue": handle_queue,
+    "sab_history": handle_history,
+    "sab_status": handle_status,
+    "sab_categories": handle_categories,
+    "sab_get_config": handle_get_config,
+    "sab_pause": handle_pause,
+    "sab_resume": handle_resume,
+    "sab_set_speedlimit": handle_set_speedlimit,
+    "sab_add_url": handle_add_url,
+    "sab_add_nzb_file": handle_add_nzb_file,
+    "sab_queue_delete": handle_queue_delete,
+    "sab_change_priority": handle_change_priority,
+    "sab_set_category": handle_set_category,
+    "sab_retry": handle_retry,
+    "sab_history_delete": handle_history_delete,
+}
 
 
 def _recv():
@@ -375,7 +428,7 @@ def main():
                 "result": {
                     "protocolVersion": "2024-11-05",
                     "capabilities": {"tools": {}},
-                    "serverInfo": {"name": "sabnzbd-mcp", "version": "0.1.1"},
+                    "serverInfo": {"name": "sabnzbd-mcp", "version": "0.2.0"},
                 },
             })
         elif method == "tools/list":
@@ -385,11 +438,24 @@ def main():
             args = params.get("arguments", {})
             handler = TOOL_HANDLERS.get(name)
             if handler:
-                text = handler(args)
-                _send({
-                    "jsonrpc": "2.0", "id": msg_id,
-                    "result": {"content": [{"type": "text", "text": text}]},
-                })
+                try:
+                    result = handler(args)
+                    if isinstance(result, tuple):
+                        text, raw_data = result
+                        content = [{"type": "text", "text": text}]
+                        if raw_data:
+                            content.append({"type": "text", "text": json.dumps(raw_data)})
+                    else:
+                        content = [{"type": "text", "text": str(result)}]
+                    _send({
+                        "jsonrpc": "2.0", "id": msg_id,
+                        "result": {"content": content},
+                    })
+                except Exception as e:
+                    _send({
+                        "jsonrpc": "2.0", "id": msg_id,
+                        "result": {"content": [{"type": "text", "text": f"Error: {e}"}], "isError": True},
+                    })
             else:
                 _send({
                     "jsonrpc": "2.0", "id": msg_id,

@@ -2,7 +2,7 @@
 
 ## 0.2.0 (2026-05-19)
 
-- Added 9 new tools (16 total):
+- Added 8 new tools (15 total):
   - `sab_get_config` — read server configuration
   - `sab_set_speedlimit` — percentage or absolute speed limit
   - `sab_add_nzb_file` — upload NZB from base64 content

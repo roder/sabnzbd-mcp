@@ -4,7 +4,7 @@ from sabnzbd_mcp import server
 
 
 def test_tool_count():
-    assert len(server.TOOLS) == 16
+    assert len(server.TOOLS) == 15
 
 
 def test_tool_names():
