@@ -5,12 +5,36 @@ import json
 import os
 import ssl
 import sys
+import threading
+import time
 import urllib.parse
 import urllib.request
+
+_send_lock = threading.Lock()
+
+def _log(msg):
+    """Write a diagnostic line to stderr (never interferes with stdout JSON-RPC)."""
+    print(f"[sabnzbd-mcp] {msg}", file=sys.stderr, flush=True)
+
+def load_env():
+    """Load variables from .env or ~/.homelab.env into os.environ if they don't already exist."""
+    env_paths = [os.path.join(os.getcwd(), ".env"), os.path.expanduser("~/.homelab.env")]
+    for path in env_paths:
+        if os.path.exists(path):
+            with open(path, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if line and not line.startswith("#") and "=" in line:
+                        k, v = line.split("=", 1)
+                        if k.strip() not in os.environ:
+                            os.environ[k.strip()] = v.strip().strip("'\"")
+
+load_env()
 
 SABNZBD_URL = os.environ.get("SABNZBD_URL", "http://localhost:8080").rstrip("/")
 SABNZBD_API_KEY = os.environ.get("SABNZBD_API_KEY", "")
 SABNZBD_SSL_VERIFY = os.environ.get("SABNZBD_SSL_VERIFY", "true").lower() not in ("false", "0", "no")
+SABNZBD_POLL_INTERVAL = int(os.environ.get("SABNZBD_POLL_INTERVAL", "15"))
 
 def _get_ssl_context():
     if not SABNZBD_SSL_VERIFY:
@@ -49,54 +73,54 @@ TOOLS = [
     # ── Read ──
     {
         "name": "sab_queue",
-        "description": "Show the SABnzbd download queue",
+        "description": "Current download queue",
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
         "name": "sab_history",
-        "description": "Show SABnzbd download history",
+        "description": "Download history (completed/failed)",
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
         "name": "sab_status",
-        "description": "Show SABnzbd server status — speed, disk, directories",
+        "description": "Server status: speed, disk, directories",
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
         "name": "sab_categories",
-        "description": "List configured download categories",
+        "description": "Download categories",
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
         "name": "sab_get_config",
-        "description": "Get SABnzbd server configuration",
+        "description": "Server configuration",
         "inputSchema": {"type": "object", "properties": {}},
     },
     # ── Control ──
     {
         "name": "sab_pause",
-        "description": "Pause all active downloads",
+        "description": "Pause downloads",
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
         "name": "sab_resume",
-        "description": "Resume paused downloads",
+        "description": "Resume downloads",
         "inputSchema": {"type": "object", "properties": {}},
     },
     {
         "name": "sab_set_speedlimit",
-        "description": "Set the global download speed limit. Use a percentage like '80' (80% of full speed) or absolute like '5M' (5 MB/s). Set to '100' for unlimited.",
+        "description": "Set speed limit: percentage or absolute",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "value": {
                     "type": "string",
-                    "description": "Speed limit: percentage ('80'), absolute ('5M' for 5 MB/s), or '100' for unlimited",
+                    "description": "Speed: '80' (percent), '5M' (5 MB/s), '100' (unlimited)",
                 },
                 "mode": {
                     "type": "string",
                     "enum": ["percent", "absolute"],
-                    "description": "'percent' (default) treats value as percentage. 'absolute' treats value as KB/s or with suffix like '5M'.",
+                    "description": "percent or absolute",
                 },
             },
             "required": ["value"],
@@ -105,37 +129,25 @@ TOOLS = [
     # ── Add downloads ──
     {
         "name": "sab_add_url",
-        "description": "Add an NZB by URL",
+        "description": "Add NZB from URL",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "url": {"type": "string", "description": "URL of the NZB file"},
-                "category": {
-                    "type": "string",
-                    "description": "SABnzbd category (optional, use sab_categories to list)",
-                },
+                "url": {"type": "string", "description": "NZB URL"},
+                "category": {"type": "string", "description": "Category name"},
             },
             "required": ["url"],
         },
     },
     {
         "name": "sab_add_nzb_file",
-        "description": "Upload an NZB file as base64-encoded content",
+        "description": "Upload NZB file content",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "content": {
-                    "type": "string",
-                    "description": "Base64-encoded content of the NZB file",
-                },
-                "filename": {
-                    "type": "string",
-                    "description": "Filename for the NZB (e.g. 'download.nzb')",
-                },
-                "category": {
-                    "type": "string",
-                    "description": "SABnzbd category (optional)",
-                },
+                "content": {"type": "string", "description": "Base64 NZB content"},
+                "filename": {"type": "string", "description": "Filename"},
+                "category": {"type": "string", "description": "Category name"},
             },
             "required": ["content"],
         },
@@ -143,32 +155,26 @@ TOOLS = [
     # ── Queue management ──
     {
         "name": "sab_queue_delete",
-        "description": "Remove a download from the queue by NZO ID (get IDs from sab_queue)",
+        "description": "Remove from queue",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "nzo_id": {
-                    "type": "string",
-                    "description": "NZO ID of the download to remove (use sab_queue to find this)",
-                },
+                "nzo_id": {"type": "string", "description": "Download ID (from sab_queue)"},
             },
             "required": ["nzo_id"],
         },
     },
     {
         "name": "sab_change_priority",
-        "description": "Change the priority of a queued download",
+        "description": "Change download priority",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "nzo_id": {
-                    "type": "string",
-                    "description": "NZO ID of the download (use sab_queue to find this)",
-                },
+                "nzo_id": {"type": "string", "description": "Download ID (from sab_queue)"},
                 "priority": {
                     "type": "string",
                     "enum": ["low", "normal", "high", "force"],
-                    "description": "New priority level",
+                    "description": "low, normal, high, or force",
                 },
             },
             "required": ["nzo_id", "priority"],
@@ -176,18 +182,12 @@ TOOLS = [
     },
     {
         "name": "sab_set_category",
-        "description": "Change the category of a queued download",
+        "description": "Change download category",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "nzo_id": {
-                    "type": "string",
-                    "description": "NZO ID of the download (use sab_queue to find this)",
-                },
-                "category": {
-                    "type": "string",
-                    "description": "Category name (use sab_categories to list)",
-                },
+                "nzo_id": {"type": "string", "description": "Download ID (from sab_queue)"},
+                "category": {"type": "string", "description": "Category name"},
             },
             "required": ["nzo_id", "category"],
         },
@@ -195,27 +195,24 @@ TOOLS = [
     # ── History management ──
     {
         "name": "sab_retry",
-        "description": "Retry failed downloads from history. Leave nzo_id empty to retry all failed.",
+        "description": "Retry failed downloads",
         "inputSchema": {
             "type": "object",
             "properties": {
                 "nzo_id": {
                     "type": "string",
-                    "description": "NZO ID to retry (optional — omit to retry all failed downloads)",
+                    "description": "Download ID, omit to retry all",
                 },
             },
         },
     },
     {
         "name": "sab_history_delete",
-        "description": "Remove an item from the download history",
+        "description": "Remove from history",
         "inputSchema": {
             "type": "object",
             "properties": {
-                "nzo_id": {
-                    "type": "string",
-                    "description": "NZO ID of the history item to delete (use sab_history to find this)",
-                },
+                "nzo_id": {"type": "string", "description": "Download ID (from sab_history)"},
             },
             "required": ["nzo_id"],
         },
@@ -403,17 +400,60 @@ TOOL_HANDLERS = {
 }
 
 
+def _poll_notifications():
+    """Poll SABnzbd history for new completed/failed items and emit MCP notifications."""
+    seen_nzo_ids = set()
+    # Prime the set of known nzo_ids so we don't alert on old history on startup
+    initial_data = _sab("history", limit=20)
+    if "error" not in initial_data:
+        for s in initial_data.get("history", {}).get("slots", []):
+            seen_nzo_ids.add(s.get("nzo_id"))
+
+    while True:
+        time.sleep(SABNZBD_POLL_INTERVAL)
+        data = _sab("history", limit=10)
+        if "error" in data:
+            _log(f"poll notification error: {data['error']}")
+            continue
+        for s in data.get("history", {}).get("slots", []):
+            nzo_id = s.get("nzo_id")
+            if nzo_id and nzo_id not in seen_nzo_ids:
+                seen_nzo_ids.add(nzo_id)
+                status = s.get("status")
+                if status in ("Completed", "Failed"):
+                    _send({
+                        "jsonrpc": "2.0",
+                        "method": "notifications/message",
+                        "params": {
+                            "name": f"sabnzbd_download_{status.lower()}",
+                            "data": {
+                                "nzo_id": nzo_id,
+                                "name": s.get("name"),
+                                "status": status,
+                                "raw_slot": s
+                            }
+                        }
+                    })
+
 def _recv():
     raw = sys.stdin.readline()
-    return json.loads(raw) if raw else None
+    if not raw:
+        return None
+    try:
+        return json.loads(raw)
+    except json.JSONDecodeError:
+        _log(f"ignoring malformed input: {raw.strip()[:200]}")
+        return {}  # skip, stay alive
 
 
 def _send(msg):
-    sys.stdout.write(json.dumps(msg) + "\n")
-    sys.stdout.flush()
+    with _send_lock:
+        sys.stdout.write(json.dumps(msg) + "\n")
+        sys.stdout.flush()
 
 
 def main():
+    threading.Thread(target=_poll_notifications, daemon=True).start()
     while True:
         msg = _recv()
         if msg is None:

@@ -1,6 +1,11 @@
 FROM python:3.11-alpine
+
 WORKDIR /app
-COPY . /app
-RUN pip install .
-ENV SABNZBD_URL=http://host.docker.internal:8080
-CMD ["sabnzbd-mcp"]
+COPY pyproject.toml .
+COPY src/ ./src/
+
+# Install the project locally so `sabnzbd-mcp` is available in PATH
+RUN pip install --no-cache-dir .
+
+# Command runs the MCP server via standard IO
+ENTRYPOINT ["sabnzbd-mcp"]

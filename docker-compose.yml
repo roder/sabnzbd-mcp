@@ -1,0 +1,17 @@
+services:
+  sabnzbd-mcp:
+    build: .
+    container_name: sabnzbd-mcp
+    restart: unless-stopped
+    # Load the centralized homelab config
+    env_file:
+      - .env
+    # We use socat to expose the stdio MCP server over a TCP port.
+    # This allows Claude Desktop or other clients to connect to this container over the network.
+    # Note: Ensure you secure this port if it is exposed to untrusted networks.
+    entrypoint: ["/bin/sh", "-c"]
+    command: >
+      "apk add --no-cache socat && 
+       socat TCP-LISTEN:8000,fork,reuseaddr EXEC:'sabnzbd-mcp'"
+    ports:
+      - "8000:8000"

@@ -20,6 +20,8 @@ sabnzbd-mcp
 
 - **No dependencies** — pure Python standard library. One file, zero installs beyond the package itself.
 - **15 tools** — full queue, history, config, category, and priority management.
+- **Asynchronous Notifications** — automatically pushes completion events to the AI so it doesn't have to poll.
+- **Shared `.env` Support** — seamlessly loads from `~/.homelab.env` for unified configuration.
 - **Any client** — Claude Desktop, Claude Code, Codex, OpenCode, Cursor, Windsurf, or any MCP host.
 - **Minimal** — single file, zero deps. Easy to audit, extend, or fork.
 
@@ -45,10 +47,14 @@ sabnzbd-mcp
 
 ## Configuration
 
+You can provide configuration via environment variables, or by creating a `.env` file in the current directory, or a `~/.homelab.env` file in your home directory (perfect for centralized toolchain configuration!).
+
 | Variable | Required | Default | Description |
 |---|---|---|---|
 | `SABNZBD_URL` | Yes | `http://localhost:8080` | Base URL of your SABnzbd instance |
 | `SABNZBD_API_KEY` | Yes | — | API Key from Settings → General |
+| `SABNZBD_SSL_VERIFY` | No | `true` | Set to `false` to disable SSL verification (for self-signed certs) |
+| `SABNZBD_POLL_INTERVAL` | No | `15` | Seconds between background polling for completion notifications |
 
 ## Client Setup
 
@@ -156,13 +162,18 @@ The server is a single self-contained Python file ([`src/sabnzbd_mcp/server.py`]
 
 ## Docker
 
+You can easily run this MCP server via Docker alongside your other Arr apps.
+
+**Standard IO via Docker Run:**
 ```bash
 docker build -t sabnzbd-mcp .
 docker run -i --rm \
-  -e SABNZBD_URL="http://host.docker.internal:8080" \
-  -e SABNZBD_API_KEY="your-key" \
+  --env-file ~/.homelab.env \
   sabnzbd-mcp
 ```
+
+**Network Mode via Docker Compose (using socat):**
+See the included `docker-compose.yml` to deploy the MCP server so it listens on a TCP port, which Claude Desktop can connect to over your local network!
 
 ## Development
 
