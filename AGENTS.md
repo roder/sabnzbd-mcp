@@ -1,10 +1,35 @@
-# Agent Instructions for sabnzbd-mcp
+# sabnzbd-mcp — Agent Instructions
 
-This is a zero-dependency Python MCP server that wraps the SABnzbd API.
+Zero-dependency Python MCP server that wraps the SABnzbd Usenet download API into 15 agent-accessible tools.
 
-## Env vars
-- `SABNZBD_URL` — base URL of the SABnzbd instance (e.g. http://localhost:8080)
+## Quick Start
+
+```bash
+pip install sabnzbd-mcp
+export SABNZBD_URL="http://localhost:8080"
+export SABNZBD_API_KEY="your-key"
+sabnzbd-mcp
+```
+
+Or via uv:
+```bash
+uv sync
+uv run sabnzbd-mcp
+```
+
+## Repository Structure
+
+- `src/sabnzbd_mcp/server.py` — Single-file MCP server (stdlib only, zero deps)
+- `tests/` — pytest test suite
+- `Dockerfile` + `docker-compose.yml` — Containerized deployment
+- `pyproject.toml` — Project config (uv-managed)
+
+## Env Vars
+
+- `SABNZBD_URL` — Base URL of the SABnzbd instance (e.g. http://localhost:8080)
 - `SABNZBD_API_KEY` — API key from SABnzbd settings
+- `SABNZBD_SSL_VERIFY` — Set to `false` for self-signed certs (default: `true`)
+- `SABNZBD_POLL_INTERVAL` — Seconds between background polling (default: `15`)
 
 ## Tools
 
@@ -31,4 +56,16 @@ This is a zero-dependency Python MCP server that wraps the SABnzbd API.
 Agent ←→ sabnzbd-mcp (stdio, JSON-RPC 2.0) ←→ SABnzbd HTTP API
 ```
 
-The server is a single file (`src/sabnzbd_mcp/server.py`) with no dependencies.
+The server is a single file (`src/sabnzbd_mcp/server.py`) with no dependencies beyond the Python standard library.
+
+## Verification
+
+```bash
+ruff check src/
+python -m pytest tests/
+```
+
+## CI
+
+- `ci.yml` — Run lint + tests on push/PR
+- `publish.yml` — Build and publish to PyPI
