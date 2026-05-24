@@ -19,11 +19,11 @@ jobs:
       - name: Validate MCP protocol
         run: |
           printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}\n' | sabnzbd-mcp | python3 -c "
-import sys, json
-lines = [json.loads(l) for l in sys.stdin if l.strip()]
-assert lines[0]['id'] == 1 and 'protocolVersion' in lines[0]['result']
-tools = lines[1]['result']['tools']
-print(f'{len(tools)} tools registered')
-for t in tools:
-    assert t['name'].startswith('sab_'), f'Bad tool name: {t[\"name\"]}'
-"
+          import sys, json
+          lines = [json.loads(l) for l in sys.stdin if l.strip()]
+          assert lines[0]['id'] == 1 and 'protocolVersion' in lines[0]['result']
+          tools = lines[1]['result']['tools']
+          print(f'{len(tools)} tools registered')
+          for t in tools:
+              assert t['name'].startswith('sab_'), f'Bad tool name: {t[\"name\"]}'
+          "
