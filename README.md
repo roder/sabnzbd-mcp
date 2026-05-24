@@ -7,6 +7,10 @@
 [![MCP](https://img.shields.io/badge/MCP-2024--11--05-purple)](https://modelcontextprotocol.io/)
 [![Dependencies](https://img.shields.io/badge/dependencies-0-brightgreen)]()
 
+<p align="center">
+  <img src="docs/assets/sabnzbd-mcp-demo.gif" alt="sabnzbd-mcp demo animation" width="720">
+</p>
+
 A [Model Context Protocol](https://modelcontextprotocol.io/) server for [SABnzbd](https://sabnzbd.org/) — zero external dependencies. Give any AI agent control over Usenet downloads.
 
 ```bash
@@ -192,3 +196,14 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). One PR per tool. Tests required.
 ## License
 
 MIT
+
+---
+
+## Ecosystem
+
+More open-source projects from [zz-plant](https://github.com/zz-plant):
+
+- [**Stims**](https://github.com/zz-plant/stims) — Browser music visualizer inspired by MilkDrop
+- [**Refract**](https://github.com/refract-org/refract) — Open infrastructure for agent-readable knowledge change
+- [**neckass**](https://github.com/zz-plant/neckass) — Privacy-first headline generator with on-device AI
+- [**ethotechnics.org**](https://github.com/zz-plant/ethotechnics.org) — Essays on ethical technology and human-centered design
