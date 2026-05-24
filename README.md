@@ -13,6 +13,11 @@
 
 A [Model Context Protocol](https://modelcontextprotocol.io/) server for [SABnzbd](https://sabnzbd.org/) — zero external dependencies. Give any AI agent control over Usenet downloads.
 
+<p align="center">
+  <img src="docs/assets/sabnzbd-mcp-cli.png" alt="sabnzbd-mcp install and MCP tool workflow" width="400">
+  <img src="docs/assets/sabnzbd-mcp-pkg.png" alt="sabnzbd-mcp package listing on PyPI" width="400">
+</p>
+
 ```bash
 pip install sabnzbd-mcp
 export SABNZBD_URL="http://localhost:8080"
