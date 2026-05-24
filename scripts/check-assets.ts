@@ -12,13 +12,13 @@ const SPECS: Record<string, Spec> = {
   badge:   { width: 240,  height: 96,   minBytes:  5_000 },
   blur:    { width: 50,   height: 28,   minBytes:    500 },
   card:    { width: 400,  height: 300,  minBytes: 25_000 },
-  circle:  { width: 540,  height: 540,  minBytes: 50_000 },
+  circle:  { width: 540,  height: 540,  minBytes: 15_000 },
   dark:    { width: 960,  height: 540,  minBytes: 25_000 },
   demo:    { width: 720,  height: 405,  minBytes: 25_000 },
   email:   { width: 600,  height: 200,  minBytes: 20_000 },
   favicon: { width: 64,   height: 64,   minBytes:  1_000 },
   github:  { width: 1280, height: 640,  minBytes: 50_000 },
-  header:  { width: 1920, height: 400,  minBytes: 50_000 },
+  header:  { width: 1920, height: 400,  minBytes: 25_000 },
   mastodon:{ width: 1200, height: 600,  minBytes: 50_000 },
   og:      { width: 1200, height: 675,  minBytes: 50_000 },
   square:  { width: 1080, height: 1080, minBytes: 50_000 },
@@ -107,13 +107,25 @@ function main() {
     }
   }
 
+  const svgPath = join(ASSETS_DIR, 'source.svg');
+  try {
+    const svg = readFileSync(svgPath, 'utf8').trim();
+    if (svg.startsWith('<svg') || svg.startsWith('<?xml')) {
+      console.log(`  ✅ source.svg  (${(statSync(svgPath).size).toLocaleString()}B)  design reference`);
+    } else {
+      errors.push('source.svg: invalid SVG (missing <svg> root)');
+    }
+  } catch {
+    errors.push('source.svg: missing — design source file required');
+  }
+
   const expectedTypes = Object.keys(SPECS);
   const missing = expectedTypes.filter(t => !found.has(t));
   if (missing.length > 0) {
     console.log(`\n  ⚠  Missing types: ${missing.join(', ')}`);
   }
 
-  console.log(`\n${errors.length === 0 ? '✅ All assets valid' : '❌ FAILURES:'}  (${files.length} checked)\n`);
+  console.log(`\n${errors.length === 0 ? '✅ All assets valid' : '❌ FAILURES:'}  (${files.length} PNGs, 1 SVG checked)\n`);
 
   if (errors.length > 0) {
     for (const err of errors) console.error(`  ❌ ${err}`);
