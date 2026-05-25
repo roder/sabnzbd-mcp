@@ -1,6 +1,6 @@
 # sabnzbd-mcp — Agent Instructions
 
-Zero-dependency Python MCP server that wraps the SABnzbd Usenet download API into 15 agent-accessible tools.
+Zero-dependency Python MCP server that wraps the SABnzbd Usenet download API into 16 agent-accessible tools.
 
 ## Quick Start
 
@@ -47,6 +47,7 @@ uv run sabnzbd-mcp
 | `sab_queue_delete` | User wants to remove a specific download |
 | `sab_change_priority` | User wants a download to go faster/slower |
 | `sab_set_category` | User wants to change the category of a queued item |
+| `sab_change_position` | User wants to reorder/change position of a queued item |
 | `sab_retry` | User wants to retry a failed download |
 | `sab_history_delete` | User wants to clean up history |
 

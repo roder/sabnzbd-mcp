@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.0 (2026-05-25)
+
+- Added Resources capability: exposes `sabnzbd://queue`, `sabnzbd://history`, `sabnzbd://status`, `sabnzbd://categories`, and `sabnzbd://config` as live JSON resources.
+- Added Prompt templates capability: `sabnzbd_summary` and `sabnzbd_download_nzb`.
+- Enhanced MCP standard conformance: full JSON-RPC 2.0 error handling (Parse error, Invalid Request, Method not found, etc.) and aligned download notification scheme to MCP logs.
+- Added `sab_change_position` tool to reorder the download queue.
+- Added optional pagination and search parameters (`start`, `limit`, `search`, `category`) to `sab_queue` and `sab_history`.
+- Added optional disk cleanup flag (`del_files`) to `sab_queue_delete` and `sab_history_delete` to remove files from disk.
+- Enabled pausing and resuming individual queue items in `sab_pause` and `sab_resume` by NZO ID.
+- Set up automated CI linting and testing via GitHub Actions.
+
 ## 0.2.0 (2026-05-19)
 
 - Added 8 new tools (15 total):

@@ -4,7 +4,7 @@ from sabnzbd_mcp import server
 
 
 def test_tool_count():
-    assert len(server.TOOLS) == 15
+    assert len(server.TOOLS) == 16
 
 
 def test_tool_names():
@@ -14,7 +14,7 @@ def test_tool_names():
         "sab_pause", "sab_resume", "sab_set_speedlimit",
         "sab_add_url", "sab_add_nzb_file",
         "sab_queue_delete", "sab_change_priority", "sab_set_category",
-        "sab_retry", "sab_history_delete",
+        "sab_change_position", "sab_retry", "sab_history_delete",
     }
     assert names == expected, f"Missing: {expected - names}, Extra: {names - expected}"
 

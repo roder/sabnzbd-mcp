@@ -28,31 +28,50 @@ sabnzbd-mcp
 ## Features
 
 - **No dependencies** — pure Python standard library. One file, zero installs beyond the package itself.
-- **15 tools** — full queue, history, config, category, and priority management.
-- **Asynchronous Notifications** — automatically pushes completion events to the AI so it doesn't have to poll.
+- **16 tools** — full queue, history, config, category, priority, and queue position management.
+- **Asynchronous Notifications** — conforming to MCP standards (sends `notifications/message` log events with severity levels).
+- **Resources & Prompts** — exposes active download queues, history, status, and categories as live JSON resources, and provides interactive prompt templates for quick actions.
 - **Shared `.env` Support** — seamlessly loads from `~/.homelab.env` for unified configuration.
 - **Any client** — Claude Desktop, Claude Code, Codex, OpenCode, Cursor, Windsurf, or any MCP host.
 - **Minimal** — single file, zero deps. Easy to audit, extend, or fork.
 
 ## Tools
 
-| Category | Tool | Description |
-|---|---|---|
-| **Read** | `sab_queue` | View the download queue — items, speed, progress, NZO IDs |
-| | `sab_history` | Browse completed and failed downloads with NZO IDs |
-| | `sab_status` | Server health — speed limits, disk space, directories |
-| | `sab_categories` | List configured download categories |
-| | `sab_get_config` | Get server configuration parameters |
-| **Control** | `sab_pause` | Pause all active downloads |
-| | `sab_resume` | Resume paused downloads |
-| | `sab_set_speedlimit` | Set global download speed limit (percentage or absolute) |
-| **Add** | `sab_add_url` | Add an NZB by URL (with optional category) |
-| | `sab_add_nzb_file` | Upload an NZB as base64-encoded content |
-| **Queue** | `sab_queue_delete` | Remove a download from the queue by NZO ID |
-| | `sab_change_priority` | Change priority (low/normal/high/force) of a queued download |
-| | `sab_set_category` | Change the category of a queued download |
-| **History** | `sab_retry` | Retry failed downloads (by NZO ID or all) |
-| | `sab_history_delete` | Remove an item from the download history |
+| Category | Tool | Parameters | Description |
+|---|---|---|---|
+| **Read** | `sab_queue` | `start` (int), `limit` (int), `search` (str), `category` (str) | View download queue with pagination and search filtering |
+| | `sab_history` | `start` (int), `limit` (int), `search` (str), `category` (str) | Browse history with pagination and search filtering |
+| | `sab_status` | — | Server health — speed limits, disk space, directories |
+| | `sab_categories` | — | List configured download categories |
+| | `sab_get_config` | — | Get server configuration parameters |
+| **Control** | `sab_pause` | `nzo_id` (str, optional) | Pause active downloads (or a specific job ID) |
+| | `sab_resume` | `nzo_id` (str, optional) | Resume paused downloads (or a specific job ID) |
+| | `sab_set_speedlimit` | `value` (str), `mode` (str) | Set global speed limit (percentage or absolute) |
+| **Add** | `sab_add_url` | `url` (str), `category` (str) | Add an NZB by URL (with optional category) |
+| | `sab_add_nzb_file` | `content` (str), `filename` (str), `category` (str) | Upload an NZB as base64-encoded content |
+| **Queue** | `sab_queue_delete` | `nzo_id` (str), `del_files` (bool) | Remove download from queue, optionally deleting files |
+| | `sab_change_priority` | `nzo_id` (str), `priority` (str) | Change priority (low/normal/high/force) of a queued download |
+| | `sab_set_category` | `nzo_id` (str), `category` (str) | Change the category of a queued download |
+| | `sab_change_position` | `nzo_id` (str), `position` (int) | Move a queued download to a different index position |
+| **History** | `sab_retry` | `nzo_id` (str, optional) | Retry failed downloads (by NZO ID or all) |
+| | `sab_history_delete` | `nzo_id` (str), `del_files` (bool) | Remove item from history, optionally deleting downloaded files |
+
+## Resources
+
+The server exposes standard MCP resources that let clients inspect the state of your SABnzbd server directly as files/JSON documents:
+
+- `sabnzbd://queue` — Live download queue JSON.
+- `sabnzbd://history` — Complete download history JSON.
+- `sabnzbd://status` — Detailed server status, free space, and directories.
+- `sabnzbd://categories` — List of configured sorting categories.
+- `sabnzbd://config` — Server configuration (with sensitive credentials automatically masked).
+
+## Prompts
+
+We provide prompt templates to jump-start agent workflows:
+
+1. **`sabnzbd_summary`**: Asks the agent to compile a comprehensive status report of the SABnzbd server health, queue, and recent history.
+2. **`sabnzbd_download_nzb`**: Prompts the agent to download a Usenet NZB from a URL and monitors its status in the queue.
 
 ## Configuration
 

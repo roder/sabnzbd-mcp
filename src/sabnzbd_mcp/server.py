@@ -74,12 +74,28 @@ TOOLS = [
     {
         "name": "sab_queue",
         "description": "Current download queue",
-        "inputSchema": {"type": "object", "properties": {}},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "start": {"type": "integer", "description": "Offset/start index (default: 0)"},
+                "limit": {"type": "integer", "description": "Max number of items to return (default: 25)"},
+                "search": {"type": "string", "description": "Filter/search queue items by filename or name"},
+                "category": {"type": "string", "description": "Filter queue items by category"},
+            }
+        },
     },
     {
         "name": "sab_history",
         "description": "Download history (completed/failed)",
-        "inputSchema": {"type": "object", "properties": {}},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "start": {"type": "integer", "description": "Offset/start index (default: 0)"},
+                "limit": {"type": "integer", "description": "Max number of items to return (default: 25)"},
+                "search": {"type": "string", "description": "Filter/search history items by filename or name"},
+                "category": {"type": "string", "description": "Filter history items by category"},
+            }
+        },
     },
     {
         "name": "sab_status",
@@ -100,12 +116,22 @@ TOOLS = [
     {
         "name": "sab_pause",
         "description": "Pause downloads",
-        "inputSchema": {"type": "object", "properties": {}},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "nzo_id": {"type": "string", "description": "Download ID to pause. If omitted, pauses all downloads."}
+            }
+        },
     },
     {
         "name": "sab_resume",
         "description": "Resume downloads",
-        "inputSchema": {"type": "object", "properties": {}},
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "nzo_id": {"type": "string", "description": "Download ID to resume. If omitted, resumes all downloads."}
+            }
+        },
     },
     {
         "name": "sab_set_speedlimit",
@@ -160,6 +186,7 @@ TOOLS = [
             "type": "object",
             "properties": {
                 "nzo_id": {"type": "string", "description": "Download ID (from sab_queue)"},
+                "del_files": {"type": "boolean", "description": "Also delete the files associated with the job (default: false)"}
             },
             "required": ["nzo_id"],
         },
@@ -192,6 +219,18 @@ TOOLS = [
             "required": ["nzo_id", "category"],
         },
     },
+    {
+        "name": "sab_change_position",
+        "description": "Move a queued download to a different position in the queue",
+        "inputSchema": {
+            "type": "object",
+            "properties": {
+                "nzo_id": {"type": "string", "description": "Download ID (from sab_queue)"},
+                "position": {"type": "integer", "description": "Target position in the queue, 0-indexed (0 for top/next)"}
+            },
+            "required": ["nzo_id", "position"],
+        },
+    },
     # ── History management ──
     {
         "name": "sab_retry",
@@ -212,11 +251,71 @@ TOOLS = [
         "inputSchema": {
             "type": "object",
             "properties": {
-                "nzo_id": {"type": "string", "description": "Download ID (from sab_history)"},
+                "nzo_id": {"type": "string", "description": "Download ID (from sab_history), or 'all' to delete everything, or 'failed' to delete failed items"},
+                "del_files": {"type": "boolean", "description": "Also delete the downloaded files on disk (default: false)"}
             },
             "required": ["nzo_id"],
         },
     },
+]
+
+# ── Resources ──
+RESOURCES = [
+    {
+        "uri": "sabnzbd://queue",
+        "name": "SABnzbd Queue",
+        "mimeType": "application/json",
+        "description": "Current download queue, speed, progress, and queued items"
+    },
+    {
+        "uri": "sabnzbd://history",
+        "name": "SABnzbd History",
+        "mimeType": "application/json",
+        "description": "Download history including completed and failed downloads"
+    },
+    {
+        "uri": "sabnzbd://status",
+        "name": "SABnzbd Status",
+        "mimeType": "application/json",
+        "description": "Server health, speed limits, disk space, and directories"
+    },
+    {
+        "uri": "sabnzbd://categories",
+        "name": "SABnzbd Categories",
+        "mimeType": "application/json",
+        "description": "Configured download categories"
+    },
+    {
+        "uri": "sabnzbd://config",
+        "name": "SABnzbd Config",
+        "mimeType": "application/json",
+        "description": "SABnzbd server configuration details"
+    }
+]
+
+# ── Prompts ──
+PROMPTS = [
+    {
+        "name": "sabnzbd_summary",
+        "description": "Generate a summary of the SABnzbd server status, download queue, and recent history.",
+        "arguments": []
+    },
+    {
+        "name": "sabnzbd_download_nzb",
+        "description": "Guides the agent to download a Usenet NZB from a URL.",
+        "arguments": [
+            {
+                "name": "url",
+                "description": "The URL of the NZB file to add",
+                "required": True
+            },
+            {
+                "name": "category",
+                "description": "Optional category to assign to the download",
+                "required": False
+            }
+        ]
+    }
 ]
 
 
@@ -224,7 +323,7 @@ def _fmt_queue(data):
     if "error" in data:
         return data["error"]
     q = data.get("queue", {})
-    slots = q.get("slots", [])[:25]
+    slots = q.get("slots", [])
     lines = [
         f"Queue: {q.get('noofslots_total', 0)} items | "
         f"{q.get('kbpersec', '0')} KB/s | "
@@ -243,7 +342,7 @@ def _fmt_history(data):
     if "error" in data:
         return data["error"]
     h = data.get("history", {})
-    slots = h.get("slots", [])[:25]
+    slots = h.get("slots", [])
     if not slots:
         return "History is empty."
     lines = [f"History: {h.get('total_size', '0')} total"]
@@ -293,11 +392,29 @@ def _speedlimit_value(value, mode):
 
 
 def handle_queue(args):
-    d = _sab("queue")
+    extra = {}
+    if "start" in args:
+        extra["start"] = args["start"]
+    if "limit" in args:
+        extra["limit"] = args["limit"]
+    if "search" in args:
+        extra["search"] = args["search"]
+    if "category" in args:
+        extra["category"] = args["category"]
+    d = _sab("queue", **extra)
     return _fmt_queue(d), d
 
 def handle_history(args):
-    d = _sab("history")
+    extra = {}
+    if "start" in args:
+        extra["start"] = args["start"]
+    if "limit" in args:
+        extra["limit"] = args["limit"]
+    if "search" in args:
+        extra["search"] = args["search"]
+    if "category" in args:
+        extra["category"] = args["category"]
+    d = _sab("history", **extra)
     return _fmt_history(d), d
 
 def handle_status(args):
@@ -318,12 +435,22 @@ def handle_get_config(args):
     return _fmt_config(d), d
 
 def handle_pause(args):
-    d = _sab("pause")
-    return d["error"] if "error" in d else "Paused", d
+    nzo_id = args.get("nzo_id")
+    if nzo_id:
+        d = _sab("queue", name="pause", value=nzo_id)
+        return d["error"] if "error" in d else f"Paused download {nzo_id}", d
+    else:
+        d = _sab("pause")
+        return d["error"] if "error" in d else "Paused all downloads", d
 
 def handle_resume(args):
-    d = _sab("resume")
-    return d["error"] if "error" in d else "Resumed", d
+    nzo_id = args.get("nzo_id")
+    if nzo_id:
+        d = _sab("queue", name="resume", value=nzo_id)
+        return d["error"] if "error" in d else f"Resumed download {nzo_id}", d
+    else:
+        d = _sab("resume")
+        return d["error"] if "error" in d else "Resumed all downloads", d
 
 def handle_set_speedlimit(args):
     d = _sab("config", name="speedlimit", value=_speedlimit_value(args["value"], args.get("mode", "percent")))
@@ -361,7 +488,10 @@ def handle_add_nzb_file(args):
     return (f"Upload failed: {result['error']}" if "error" in result else "NZB file uploaded successfully", result)
 
 def handle_queue_delete(args):
-    d = _sab("queue", name="delete", value=args["nzo_id"])
+    extra = {}
+    if args.get("del_files"):
+        extra["del_files"] = "1"
+    d = _sab("queue", name="delete", value=args["nzo_id"], **extra)
     return d["error"] if "error" in d else "Removed from queue", d
 
 def handle_change_priority(args):
@@ -372,12 +502,19 @@ def handle_set_category(args):
     d = _sab("change_cat", value=args["nzo_id"], cat=args["category"])
     return d["error"] if "error" in d else f"Category changed to {args['category']}", d
 
+def handle_change_position(args):
+    d = _sab("queue", name="change_pos", value=args["nzo_id"], value2=str(args["position"]))
+    return d["error"] if "error" in d else f"Moved to position {args['position']}", d
+
 def handle_retry(args):
     d = _sab("retry", value=args.get("nzo_id", "all"))
     return d["error"] if "error" in d else "Retrying", d
 
 def handle_history_delete(args):
-    d = _sab("history", name="delete", value=args["nzo_id"])
+    extra = {}
+    if args.get("del_files"):
+        extra["del_files"] = "1"
+    d = _sab("history", name="delete", value=args["nzo_id"], **extra)
     return d["error"] if "error" in d else "Deleted from history", d
 
 
@@ -395,9 +532,71 @@ TOOL_HANDLERS = {
     "sab_queue_delete": handle_queue_delete,
     "sab_change_priority": handle_change_priority,
     "sab_set_category": handle_set_category,
+    "sab_change_position": handle_change_position,
     "sab_retry": handle_retry,
     "sab_history_delete": handle_history_delete,
 }
+
+# ── Resources Logic ──
+
+def _read_resource_queue():
+    return json.dumps(_sab("queue"))
+
+def _read_resource_history():
+    return json.dumps(_sab("history"))
+
+def _read_resource_status():
+    return json.dumps(_sab("status"))
+
+def _read_resource_categories():
+    return json.dumps(_sab("get_cats"))
+
+def _read_resource_config():
+    res = _sab("get_config")
+    if "config" in res and "api_key" in res["config"]:
+        key = res["config"]["api_key"]
+        if key:
+            res["config"]["api_key"] = f"{key[:4]}...{key[-4:]}"
+    return json.dumps(res)
+
+RESOURCE_HANDLERS = {
+    "sabnzbd://queue": _read_resource_queue,
+    "sabnzbd://history": _read_resource_history,
+    "sabnzbd://status": _read_resource_status,
+    "sabnzbd://categories": _read_resource_categories,
+    "sabnzbd://config": _read_resource_config,
+}
+
+# ── Prompts Logic ──
+
+def handle_get_prompt(name, args):
+    if name == "sabnzbd_summary":
+        return [
+            {
+                "role": "user",
+                "content": {
+                    "type": "text",
+                    "text": "Please retrieve the current SABnzbd server status using `sab_status`, view the download queue using `sab_queue`, check the recent history using `sab_history`, and present a concise summary of the server's health, current download progress, and any completed/failed items."
+                }
+            }
+        ]
+    elif name == "sabnzbd_download_nzb":
+        url = args.get("url")
+        if not url:
+            raise ValueError("Argument 'url' is required for prompt 'sabnzbd_download_nzb'")
+        cat = args.get("category", "")
+        cat_suffix = f" with category '{cat}'" if cat else ""
+        return [
+            {
+                "role": "user",
+                "content": {
+                    "type": "text",
+                    "text": f"Please add the NZB from URL '{url}'{cat_suffix} using the `sab_add_url` tool, then check the queue with `sab_queue` and inform me once it starts downloading."
+                }
+            }
+        ]
+    else:
+        raise ValueError(f"Unknown prompt name: {name}")
 
 
 def _poll_notifications():
@@ -425,7 +624,9 @@ def _poll_notifications():
                         "jsonrpc": "2.0",
                         "method": "notifications/message",
                         "params": {
-                            "name": f"sabnzbd_download_{status.lower()}",
+                            "level": "info",
+                            "logger": "sabnzbd-mcp",
+                            "message": f"SABnzbd download {status.lower()}: {s.get('name')} ({nzo_id})",
                             "data": {
                                 "nzo_id": nzo_id,
                                 "name": s.get("name"),
@@ -434,16 +635,6 @@ def _poll_notifications():
                             }
                         }
                     })
-
-def _recv():
-    raw = sys.stdin.readline()
-    if not raw:
-        return None
-    try:
-        return json.loads(raw)
-    except json.JSONDecodeError:
-        _log(f"ignoring malformed input: {raw.strip()[:200]}")
-        return {}  # skip, stay alive
 
 
 def _send(msg):
@@ -455,25 +646,60 @@ def _send(msg):
 def main():
     threading.Thread(target=_poll_notifications, daemon=True).start()
     while True:
-        msg = _recv()
-        if msg is None:
+        raw = sys.stdin.readline()
+        if not raw:
             break
-        msg_id = msg.get("id", 0)
+        
+        # 1. Parse JSON input
+        try:
+            msg = json.loads(raw)
+        except json.JSONDecodeError:
+            _send({
+                "jsonrpc": "2.0",
+                "error": {"code": -32700, "message": "Parse error"},
+                "id": None
+            })
+            continue
+
+        # 2. Check JSON-RPC 2.0 structure
+        if not isinstance(msg, dict) or msg.get("jsonrpc") != "2.0" or not isinstance(msg.get("method"), str):
+            msg_id = msg.get("id") if isinstance(msg, dict) else None
+            _send({
+                "jsonrpc": "2.0",
+                "error": {"code": -32600, "message": "Invalid Request"},
+                "id": msg_id
+            })
+            continue
+
+        msg_id = msg.get("id")
         method = msg.get("method", "")
         params = msg.get("params", {})
+        is_notification = "id" not in msg
 
         if method == "initialize":
+            if is_notification:
+                continue
             _send({
                 "jsonrpc": "2.0", "id": msg_id,
                 "result": {
                     "protocolVersion": "2024-11-05",
-                    "capabilities": {"tools": {}},
-                    "serverInfo": {"name": "sabnzbd-mcp", "version": "0.2.0"},
+                    "capabilities": {
+                        "tools": {},
+                        "resources": {},
+                        "prompts": {}
+                    },
+                    "serverInfo": {"name": "sabnzbd-mcp", "version": "0.3.0"},
                 },
             })
+        elif method == "notifications/initialized":
+            pass
         elif method == "tools/list":
+            if is_notification:
+                continue
             _send({"jsonrpc": "2.0", "id": msg_id, "result": {"tools": TOOLS}})
         elif method == "tools/call":
+            if is_notification:
+                continue
             name = params.get("name", "")
             args = params.get("arguments", {})
             handler = TOOL_HANDLERS.get(name)
@@ -501,10 +727,83 @@ def main():
                     "jsonrpc": "2.0", "id": msg_id,
                     "error": {"code": -32601, "message": f"Unknown tool: {name}"},
                 })
-        elif method == "notifications/initialized":
-            pass
+        elif method == "resources/list":
+            if is_notification:
+                continue
+            _send({
+                "jsonrpc": "2.0", "id": msg_id,
+                "result": {"resources": RESOURCES}
+            })
+        elif method == "resources/read":
+            if is_notification:
+                continue
+            uri = params.get("uri", "")
+            handler = RESOURCE_HANDLERS.get(uri)
+            if handler:
+                try:
+                    text_content = handler()
+                    _send({
+                        "jsonrpc": "2.0", "id": msg_id,
+                        "result": {
+                            "contents": [
+                                {
+                                    "uri": uri,
+                                    "mimeType": "application/json",
+                                    "text": text_content
+                                }
+                            ]
+                        }
+                    })
+                except Exception as e:
+                    _send({
+                        "jsonrpc": "2.0", "id": msg_id,
+                        "error": {"code": -32603, "message": f"Internal error reading resource: {e}"}
+                    })
+            else:
+                _send({
+                    "jsonrpc": "2.0", "id": msg_id,
+                    "error": {"code": -32602, "message": f"Unknown resource URI: {uri}"}
+                })
+        elif method == "prompts/list":
+            if is_notification:
+                continue
+            _send({
+                "jsonrpc": "2.0", "id": msg_id,
+                "result": {"prompts": PROMPTS}
+            })
+        elif method == "prompts/get":
+            if is_notification:
+                continue
+            name = params.get("name", "")
+            args = params.get("arguments", {})
+            prompt_def = next((p for p in PROMPTS if p["name"] == name), None)
+            if prompt_def:
+                try:
+                    messages = handle_get_prompt(name, args)
+                    _send({
+                        "jsonrpc": "2.0", "id": msg_id,
+                        "result": {
+                            "description": prompt_def.get("description", ""),
+                            "messages": messages
+                        }
+                    })
+                except Exception as e:
+                    _send({
+                        "jsonrpc": "2.0", "id": msg_id,
+                        "error": {"code": -32602, "message": str(e)}
+                    })
+            else:
+                _send({
+                    "jsonrpc": "2.0", "id": msg_id,
+                    "error": {"code": -32602, "message": f"Unknown prompt: {name}"}
+                })
         else:
-            _send({"jsonrpc": "2.0", "id": msg_id, "result": {}})
+            if is_notification:
+                continue
+            _send({
+                "jsonrpc": "2.0", "id": msg_id,
+                "error": {"code": -32601, "message": f"Method not found: {method}"}
+            })
 
 
 if __name__ == "__main__":
