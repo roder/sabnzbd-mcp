@@ -3,3 +3,24 @@ __pycache__/
 dist/
 *.egg-info/
 /.sisyphus
+
+# Tooling
+.cmux/
+.opencode/
+.codex/
+.agent/
+.wrangler/
+
+# Tooling
+.cmux/
+.opencode/
+.codex/
+.agent/
+.wrangler/
+
+# Tooling
+.cmux/
+.opencode/
+.codex/
+.agent/
+.wrangler/
