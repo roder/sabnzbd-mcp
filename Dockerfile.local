@@ -1,0 +1,38 @@
+# sabnzbd-mcp — single image that bundles mcp-proxy (Python) wrapping
+# zz-plant/sabnzbd-mcp (Python stdio MCP server) in a Streamable-HTTP
+# surface. Zero external dependencies upstream; uses only the Python
+# standard library. Mirror of the mcp-docker pattern.
+
+# python:3.11-slim matches the upstream Dockerfile's Python version and
+# gives us a venv-able environment for mcp-proxy. PEP 668 blocks system
+# pip on Debian-slim, so install mcp-proxy into a venv and prepend to PATH.
+FROM python:3.11-slim
+
+# mcp-proxy is a Python tool. Install into a venv and prepend its bin
+# to PATH so the CMD below resolves without ceremony.
+RUN python3 -m venv /opt/venv \
+ && /opt/venv/bin/pip install --no-cache-dir mcp-proxy
+
+ENV PATH="/opt/venv/bin:${PATH}"
+
+# Copy the upstream sabnzbd-mcp source and install it. The upstream
+# Dockerfile uses python:3.11-alpine; switching to -slim here so we can
+# also pull in mcp-proxy's deps without needing build-base tooling.
+WORKDIR /app
+COPY pyproject.toml ./
+COPY src/ ./src/
+RUN pip install --no-cache-dir .
+
+# mcp-proxy config: one stdio backend named "sabnzbd", which mcp-proxy
+# spawns lazily on the first incoming request. The `command` form means
+# "run this binary as a stdio MCP server". SABNZBD_URL / SABNZBD_API_KEY
+# are injected by the container's environment so they propagate to the
+# spawned subprocess.
+COPY mcp-config.json /etc/mcp-proxy/config.json
+
+EXPOSE 8080
+
+# mcp-proxy serves the merged tool surface on the configured path.
+# Defaults are port 8080 and path /mcp, which match what compose.yaml
+# exposes.
+CMD ["mcp-proxy", "--named-server-config", "/etc/mcp-proxy/config.json", "--pass-environment", "--port", "8080", "--host", "0.0.0.0", "--transport", "streamablehttp", "--stateless"]

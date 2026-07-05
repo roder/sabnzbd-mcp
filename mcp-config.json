@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "sabnzbd": {
+      "command": "sabnzbd-mcp",
+      "args": []
+    }
+  }
+}
